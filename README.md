@@ -43,6 +43,19 @@ To use Apps Script mode, add this in .env.local:
 CLASSBUILDING_APPS_SCRIPT_URL=https://script.google.com/macros/s/your-deployment-id/exec
 ```
 
+Local setup steps:
+
+1. Copy .env.example to .env.local
+2. Put your Apps Script Web App URL in CLASSBUILDING_APPS_SCRIPT_URL
+3. Restart `npm run dev`
+
+Vercel setup steps:
+
+1. Go to Vercel project -> Settings -> Environment Variables
+2. Add `CLASSBUILDING_APPS_SCRIPT_URL`
+3. Paste your Apps Script Web App URL as the value
+4. Save and redeploy
+
 ### Required sheet tabs
 
 Create these tabs in one spreadsheet:
