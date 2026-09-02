@@ -1,7 +1,7 @@
 import { applyClassroomAction, getClassroomState, type ClassroomAction, type ClassroomState } from "@/lib/state";
 
 const scriptUrl = process.env.CLASSBUILDING_APPS_SCRIPT_URL;
-const SCRIPT_FETCH_TIMEOUT_MS = 8000;
+const SCRIPT_FETCH_TIMEOUT_MS = 20000;
 
 type SourceResponse = {
   state: ClassroomState;
@@ -115,12 +115,7 @@ export async function postActionToSource(action: ClassroomAction): Promise<Sourc
 
     return { state: normalizeState(data.state), meta: data.meta, source: "apps-script" };
   } catch (error) {
-    const localResult = applyClassroomAction(action);
-    return {
-      state: localResult.state,
-      meta: localResult.meta,
-      source: "local-fallback",
-      sourceError: error instanceof Error ? error.message : "Unknown Apps Script error",
-    };
+    const message = error instanceof Error ? error.message : "Unknown Apps Script error";
+    throw new Error(`Apps Script update failed: ${message}`);
   }
 }
