@@ -103,6 +103,12 @@ When the Apps Script runs for the first time, it will:
 
 Teachers can replace sample rows with real class data directly in Google Sheets.
 
+If your sheet was created before this update and appears empty, run one of these once:
+
+1. In Apps Script editor, run function `setupTemplate`
+2. Or open this URL in browser:
+  `https://script.google.com/macros/s/your-deployment-id/exec?action=initTemplate`
+
 ### Apps Script action contract
 
 GET action:

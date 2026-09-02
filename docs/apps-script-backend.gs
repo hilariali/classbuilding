@@ -80,6 +80,11 @@ const TEMPLATE_ROWS = {
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || '';
+    if (action === 'initTemplate') {
+      const summary = setupTemplate();
+      return json_({ ok: true, summary: summary });
+    }
+
     if (action !== 'getState') {
       return json_({ error: 'Unsupported GET action' });
     }
@@ -117,12 +122,16 @@ function ensureSheets_() {
     if (!sheet) {
       sheet = spreadsheet.insertSheet(sheetName);
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      return;
     }
 
     const firstRow = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
     const isHeaderEmpty = firstRow.every((cell) => String(cell).trim() === '');
     if (isHeaderEmpty) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+
+    const hasMismatchedHeaders = headers.some((header, index) => String(firstRow[index] || '') !== header);
+    if (hasMismatchedHeaders) {
       sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     }
 
@@ -135,6 +144,18 @@ function ensureSheets_() {
       }
     }
   });
+}
+
+function setupTemplate() {
+  ensureSheets_();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  return {
+    settingsRows: Math.max(spreadsheet.getSheetByName(SHEETS.settings).getLastRow() - 1, 0),
+    studentsRows: Math.max(spreadsheet.getSheetByName(SHEETS.students).getLastRow() - 1, 0),
+    announcementsRows: Math.max(spreadsheet.getSheetByName(SHEETS.announcements).getLastRow() - 1, 0),
+    drawSessionsRows: Math.max(spreadsheet.getSheetByName(SHEETS.drawSessions).getLastRow() - 1, 0),
+  };
 }
 
 function readStateFromSheets_() {
