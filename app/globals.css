@@ -124,6 +124,26 @@ button {
   line-height: 1.6;
 }
 
+.connection-banner {
+  margin: -8px 0 22px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.connection-banner.connected {
+  background: #edf9f0;
+  border: 1px solid #9fd6ad;
+  color: #1f6b35;
+}
+
+.connection-banner.fallback {
+  background: #fff1ef;
+  border: 1px solid #f3b0a7;
+  color: #8b2f22;
+}
+
 .lock-panel {
   margin-bottom: 20px;
   background: linear-gradient(120deg, #fff9ec, #fff3f4);

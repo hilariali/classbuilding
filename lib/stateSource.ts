@@ -9,6 +9,7 @@ type SourceResponse = {
     drawnStudentName?: string;
   };
   source: "apps-script" | "local-fallback";
+  sourceError?: string;
 };
 
 function normalizeState(incoming: ClassroomState): ClassroomState {
@@ -40,7 +41,11 @@ async function fetchWithTimeout(url: string, init: RequestInit) {
 
 export async function getStateFromSource(): Promise<SourceResponse> {
   if (!scriptUrl) {
-    return { state: getClassroomState(), source: "local-fallback" };
+    return {
+      state: getClassroomState(),
+      source: "local-fallback",
+      sourceError: "CLASSBUILDING_APPS_SCRIPT_URL is not set",
+    };
   }
 
   try {
@@ -53,14 +58,21 @@ export async function getStateFromSource(): Promise<SourceResponse> {
       throw new Error(`Apps Script getState failed with ${response.status}`);
     }
 
-    const data = (await response.json()) as { state?: ClassroomState };
+    const data = (await response.json()) as { state?: ClassroomState; error?: string };
+    if (data.error) {
+      throw new Error(data.error);
+    }
     if (!data.state) {
       throw new Error("Apps Script response missing state");
     }
 
     return { state: normalizeState(data.state), source: "apps-script" };
-  } catch {
-    return { state: getClassroomState(), source: "local-fallback" };
+  } catch (error) {
+    return {
+      state: getClassroomState(),
+      source: "local-fallback",
+      sourceError: error instanceof Error ? error.message : "Unknown Apps Script error",
+    };
   }
 }
 
@@ -71,6 +83,7 @@ export async function postActionToSource(action: ClassroomAction): Promise<Sourc
       state: localResult.state,
       meta: localResult.meta,
       source: "local-fallback",
+      sourceError: "CLASSBUILDING_APPS_SCRIPT_URL is not set",
     };
   }
 
@@ -89,19 +102,25 @@ export async function postActionToSource(action: ClassroomAction): Promise<Sourc
     const data = (await response.json()) as {
       state?: ClassroomState;
       meta?: { drawnStudentName?: string };
+      error?: string;
     };
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
 
     if (!data.state) {
       throw new Error("Apps Script response missing state");
     }
 
     return { state: normalizeState(data.state), meta: data.meta, source: "apps-script" };
-  } catch {
+  } catch (error) {
     const localResult = applyClassroomAction(action);
     return {
       state: localResult.state,
       meta: localResult.meta,
       source: "local-fallback",
+      sourceError: error instanceof Error ? error.message : "Unknown Apps Script error",
     };
   }
 }

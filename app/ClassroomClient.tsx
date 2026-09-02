@@ -12,6 +12,8 @@ type ApiResponse = {
   meta?: {
     drawnStudentName?: string;
   };
+  source?: "apps-script" | "local-fallback";
+  sourceError?: string;
   error?: string;
 };
 
@@ -46,12 +48,16 @@ function formatTime(seconds: number) {
 type Props = {
   initialState: ClassroomState;
   appsScriptCode: string;
+  initialSource: "apps-script" | "local-fallback";
+  initialSourceError?: string;
 };
 
-export default function ClassroomClient({ initialState, appsScriptCode }: Props) {
+export default function ClassroomClient({ initialState, appsScriptCode, initialSource, initialSourceError }: Props) {
   const [state, setState] = useState<ClassroomState>(initialState);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [dataSource, setDataSource] = useState<"apps-script" | "local-fallback">(initialSource);
+  const [dataSourceError, setDataSourceError] = useState(initialSourceError ?? "");
 
   const [viewMode, setViewMode] = useState<ViewMode>("student");
   const [scoreboardView, setScoreboardView] = useState<ScoreboardView>("overall");
@@ -114,6 +120,8 @@ export default function ClassroomClient({ initialState, appsScriptCode }: Props)
       }
 
       setState(result.state);
+      setDataSource(result.source ?? "local-fallback");
+      setDataSourceError(result.sourceError ?? "");
       if (result.meta?.drawnStudentName) {
         setLatestDrawName(result.meta.drawnStudentName);
       }
@@ -208,6 +216,13 @@ export default function ClassroomClient({ initialState, appsScriptCode }: Props)
       <section className="announcement-banner">
         <strong>Pinned announcement:</strong>{" "}
         {pinnedAnnouncement ? `${pinnedAnnouncement.title} - ${pinnedAnnouncement.body}` : "No announcement yet"}
+      </section>
+
+      <section className={`connection-banner ${dataSource === "apps-script" ? "connected" : "fallback"}`}>
+        <strong>Backend:</strong> {dataSource === "apps-script" ? "Connected to Google Sheets" : "Using local fallback data"}
+        {dataSource === "local-fallback" && dataSourceError && (
+          <span> ({dataSourceError})</span>
+        )}
       </section>
 
       {!teacherUnlocked && (

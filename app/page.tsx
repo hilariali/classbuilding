@@ -8,5 +8,12 @@ export default async function Home() {
   const scriptPath = path.join(process.cwd(), "docs", "apps-script-backend.gs");
   const appsScriptCode = await fs.readFile(scriptPath, "utf8");
 
-  return <ClassroomClient initialState={response.state} appsScriptCode={appsScriptCode} />;
+  return (
+    <ClassroomClient
+      initialState={response.state}
+      appsScriptCode={appsScriptCode}
+      initialSource={response.source}
+      initialSourceError={response.sourceError}
+    />
+  );
 }
