@@ -2,6 +2,7 @@ import { applyClassroomAction, getClassroomState, type ClassroomAction, type Cla
 
 const scriptUrl = process.env.CLASSBUILDING_APPS_SCRIPT_URL;
 const SCRIPT_FETCH_TIMEOUT_MS = 20000;
+const SCRIPT_FETCH_RETRIES = 2;
 
 type SourceResponse = {
   state: ClassroomState;
@@ -39,6 +40,27 @@ async function fetchWithTimeout(url: string, init: RequestInit) {
   }
 }
 
+async function fetchScriptWithRetry(url: string, init: RequestInit) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= SCRIPT_FETCH_RETRIES; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, init);
+      if (!response.ok) {
+        throw new Error(`Apps Script request failed with ${response.status}`);
+      }
+      return response;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error("Unknown Apps Script error");
+      if (attempt === SCRIPT_FETCH_RETRIES) {
+        break;
+      }
+    }
+  }
+
+  throw lastError ?? new Error("Unknown Apps Script error");
+}
+
 export async function getStateFromSource(): Promise<SourceResponse> {
   if (!scriptUrl) {
     return {
@@ -49,14 +71,10 @@ export async function getStateFromSource(): Promise<SourceResponse> {
   }
 
   try {
-    const response = await fetchWithTimeout(`${scriptUrl}?action=getState`, {
+    const response = await fetchScriptWithRetry(`${scriptUrl}?action=getState`, {
       method: "GET",
       cache: "no-store",
     });
-
-    if (!response.ok) {
-      throw new Error(`Apps Script getState failed with ${response.status}`);
-    }
 
     const data = (await response.json()) as { state?: ClassroomState; error?: string };
     if (data.error) {
@@ -88,16 +106,12 @@ export async function postActionToSource(action: ClassroomAction): Promise<Sourc
   }
 
   try {
-    const response = await fetchWithTimeout(scriptUrl, {
+    const response = await fetchScriptWithRetry(scriptUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(action),
       cache: "no-store",
     });
-
-    if (!response.ok) {
-      throw new Error(`Apps Script post action failed with ${response.status}`);
-    }
 
     const data = (await response.json()) as {
       state?: ClassroomState;
