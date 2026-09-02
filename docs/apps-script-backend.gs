@@ -77,6 +77,34 @@ const TEMPLATE_ROWS = {
   ],
 };
 
+function getSpreadsheet_() {
+  const configuredId = String(
+    PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || ''
+  ).trim();
+
+  if (configuredId) {
+    return SpreadsheetApp.openById(configuredId);
+  }
+
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) {
+    return active;
+  }
+
+  throw new Error(
+    'Spreadsheet not found. Set script property SPREADSHEET_ID or bind this script to your Google Sheet.'
+  );
+}
+
+function setSpreadsheetId(spreadsheetId) {
+  const id = String(spreadsheetId || '').trim();
+  if (!id) {
+    throw new Error('Please pass a valid Spreadsheet ID.');
+  }
+  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', id);
+  return { ok: true, spreadsheetId: id };
+}
+
 function doGet(e) {
   try {
     const action = (e && e.parameter && e.parameter.action) || '';
@@ -112,7 +140,7 @@ function doPost(e) {
 }
 
 function ensureSheets_() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getSpreadsheet_();
 
   Object.keys(SHEETS).forEach((key) => {
     const sheetName = SHEETS[key];
@@ -148,7 +176,7 @@ function ensureSheets_() {
 
 function setupTemplate() {
   ensureSheets_();
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getSpreadsheet_();
 
   return {
     settingsRows: Math.max(spreadsheet.getSheetByName(SHEETS.settings).getLastRow() - 1, 0),
@@ -159,7 +187,7 @@ function setupTemplate() {
 }
 
 function readStateFromSheets_() {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getSpreadsheet_();
   const settingsSheet = spreadsheet.getSheetByName(SHEETS.settings);
   const studentsSheet = spreadsheet.getSheetByName(SHEETS.students);
   const announcementsSheet = spreadsheet.getSheetByName(SHEETS.announcements);
@@ -233,7 +261,7 @@ function readStateFromSheets_() {
 }
 
 function writeStateToSheets_(state) {
-  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = getSpreadsheet_();
 
   writeRows_(spreadsheet.getSheetByName(SHEETS.settings), HEADERS.settings, [{
     schoolName: state.schoolName || 'CWCC',
