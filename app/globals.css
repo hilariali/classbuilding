@@ -220,6 +220,22 @@ button {
   background: #fff;
 }
 
+.setup-title {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+}
+
+.setup-steps {
+  margin: 0 0 12px 20px;
+  color: var(--text);
+  display: grid;
+  gap: 8px;
+}
+
+.setup-steps li {
+  line-height: 1.45;
+}
+
 .scoreboard-list {
   display: flex;
   flex-direction: column;

@@ -330,8 +330,41 @@ export default function ClassroomClient({ initialState, appsScriptCode }: Props)
 
           <article className="panel wide-panel">
             <div className="panel-header"><h2>Google spreadsheet setup + Apps Script code</h2></div>
-            <p className="muted-text">Put your Apps Script Web App URL in .env.local to connect backend.</p>
+            <p className="muted-text">Follow this checklist once, then your class data will persist in Google Sheets.</p>
+            <ol className="setup-steps">
+              <li>
+                Create or open your target Google Sheet.
+                <div className="muted-text">Copy the Sheet ID from the URL between /d/ and /edit.</div>
+              </li>
+              <li>
+                In Apps Script, paste the full code shown below and save.
+              </li>
+              <li>
+                Run <strong>setSpreadsheetId(&quot;YOUR_SHEET_ID&quot;)</strong> once in Apps Script.
+              </li>
+              <li>
+                Run <strong>setupTemplate()</strong> once to create tabs + sample rows.
+              </li>
+              <li>
+                Deploy Apps Script as Web App:
+                <div className="muted-text">Execute as: Me, Who has access: Anyone with the link.</div>
+              </li>
+              <li>
+                Copy the Web App URL and set it in your local environment:
+              </li>
+            </ol>
             <pre className="code-block">{`CLASSBUILDING_APPS_SCRIPT_URL=https://script.google.com/macros/s/your-deployment-id/exec`}</pre>
+            <p className="muted-text">For local test: put this value in .env.local and restart npm run dev.</p>
+
+            <h3 className="setup-title">Set environment variable on Vercel (UI)</h3>
+            <ol className="setup-steps">
+              <li>Open your project in Vercel dashboard.</li>
+              <li>Go to Settings -&gt; Environment Variables.</li>
+              <li>Add variable name: <strong>CLASSBUILDING_APPS_SCRIPT_URL</strong>.</li>
+              <li>Paste your Apps Script Web App URL as the value.</li>
+              <li>Select environments: Production (and Preview/Development if needed).</li>
+              <li>Save, then redeploy the project.</li>
+            </ol>
             <details className="script-details" open>
               <summary>Show exact Apps Script code (same as docs/apps-script-backend.gs)</summary>
               <pre className="code-block">{appsScriptCode}</pre>

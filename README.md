@@ -49,12 +49,21 @@ Local setup steps:
 2. Put your Apps Script Web App URL in CLASSBUILDING_APPS_SCRIPT_URL
 3. Restart `npm run dev`
 
+Apps Script one-time setup steps:
+
+1. Open your target Google Sheet and copy the Sheet ID from the URL.
+2. In Apps Script editor, paste the full code from docs/apps-script-backend.gs.
+3. Run `setSpreadsheetId("YOUR_SHEET_ID")` once.
+4. Run `setupTemplate()` once.
+5. Confirm these tabs are created with sample rows: Settings, Students, Announcements, DrawSessions.
+
 Vercel setup steps:
 
 1. Go to Vercel project -> Settings -> Environment Variables
 2. Add `CLASSBUILDING_APPS_SCRIPT_URL`
 3. Paste your Apps Script Web App URL as the value
-4. Save and redeploy
+4. Select target environments (Production; optional Preview/Development)
+5. Save and redeploy
 
 ### Required sheet tabs
 
