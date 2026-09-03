@@ -45,6 +45,14 @@ function formatTime(seconds: number) {
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+function orderAnnouncements(
+  items: ClassroomState["announcements"],
+): ClassroomState["announcements"] {
+  const pinned = items.filter((item) => item.pinned);
+  const others = items.filter((item) => !item.pinned);
+  return [...pinned, ...others];
+}
+
 function applyOptimisticAction(current: ClassroomState, action: ClassroomAction): ClassroomState | null {
   if (action.action === "updateScore") {
     return {
@@ -85,6 +93,28 @@ function applyOptimisticAction(current: ClassroomState, action: ClassroomAction)
       ...current,
       schoolName: action.schoolName.trim() || current.schoolName,
       className: action.className.trim() || current.className,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (action.action === "togglePinnedAnnouncement") {
+    const next = current.announcements.map((item) => {
+      if (item.id === action.announcementId) {
+        return { ...item, pinned: !item.pinned };
+      }
+      return { ...item, pinned: false };
+    });
+    return {
+      ...current,
+      announcements: orderAnnouncements(next),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (action.action === "deleteAnnouncement") {
+    return {
+      ...current,
+      announcements: orderAnnouncements(current.announcements.filter((item) => item.id !== action.announcementId)),
       updatedAt: new Date().toISOString(),
     };
   }
@@ -252,9 +282,14 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
     [state],
   );
 
-  const pinnedAnnouncement = useMemo(
-    () => state.announcements.find((item) => item.pinned) ?? state.announcements[0] ?? null,
+  const orderedAnnouncements = useMemo(
+    () => orderAnnouncements(state.announcements),
     [state],
+  );
+
+  const pinnedAnnouncement = useMemo(
+    () => orderedAnnouncements.find((item) => item.pinned) ?? orderedAnnouncements[0] ?? null,
+    [orderedAnnouncements],
   );
 
   const topOverall = useMemo(
@@ -401,7 +436,7 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
           <article className="panel">
             <div className="panel-header"><h2>Messages</h2></div>
             <div className="message-list">
-              {state.announcements.map((item) => (
+              {orderedAnnouncements.map((item) => (
                 <article className="message" key={item.id}>
                   <div className="message-meta">
                     <strong>{item.title}</strong>
@@ -585,12 +620,21 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
               }}>{isPending("announcement") ? "Posting..." : "Post announcement"}</button>
             </div>
             <div className="message-list">
-              {state.announcements.map((item) => (
+              {orderedAnnouncements.map((item) => (
                 <article className="message" key={item.id}>
                   <div className="message-meta"><strong>{item.title}</strong>{item.pinned && <span className="pin-tag">Pinned</span>}</div>
                   <p>{item.body}</p>
                   <small>{item.date}</small>
-                  <button className="tiny-button" disabled={saving} onClick={() => applyAction({ action: "togglePinnedAnnouncement", announcementId: item.id }, { key: `pin-${item.id}`, savingText: "Updating pin...", successText: "Pin updated" })}>{item.pinned ? "Unpin" : "Pin"}</button>
+                  <div className="message-actions">
+                    <button className="tiny-button" disabled={saving} onClick={() => applyAction({ action: "togglePinnedAnnouncement", announcementId: item.id }, { key: `pin-${item.id}`, savingText: "Updating pin...", successText: item.pinned ? "Announcement unpinned" : "Announcement pinned to top" })}>{item.pinned ? "Unpin" : "Pin to top"}</button>
+                    <button className="tiny-button danger" disabled={saving} onClick={() => {
+                      if (!window.confirm(`Delete announcement \"${item.title}\"?`)) return;
+                      void applyAction(
+                        { action: "deleteAnnouncement", announcementId: item.id },
+                        { key: `delete-ann-${item.id}`, savingText: "Deleting announcement...", successText: "Announcement deleted" },
+                      );
+                    }}>{isPending(`delete-ann-${item.id}`) ? "Deleting..." : "Delete"}</button>
+                  </div>
                 </article>
               ))}
             </div>

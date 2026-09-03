@@ -36,6 +36,7 @@ export type ClassroomAction =
   | { action: "updateRemark"; studentId: number; remark: string }
   | { action: "updateRole"; studentId: number; role: string }
   | { action: "addAnnouncement"; title: string; body: string; pinned?: boolean }
+  | { action: "deleteAnnouncement"; announcementId: number }
   | { action: "togglePinnedAnnouncement"; announcementId: number }
   | { action: "createDrawSession"; title: string; mode: DrawMode }
   | { action: "removeDrawSession"; sessionId: number }
@@ -64,6 +65,12 @@ function nowIso() {
 
 function computeOverall(student: Student): number {
   return student.academic + student.motivation + student.service + student.roleModel;
+}
+
+function orderAnnouncements(input: Announcement[]): Announcement[] {
+  const pinned = input.filter((announcement) => announcement.pinned);
+  const others = input.filter((announcement) => !announcement.pinned);
+  return [...pinned, ...others];
 }
 
 function normalizeStudents(input: Student[]): Student[] {
@@ -169,6 +176,13 @@ export function applyClassroomAction(action: ClassroomAction): ActionResult {
           pinned,
           date: nowDate(),
         });
+        state.announcements = orderAnnouncements(state.announcements);
+        return;
+      }
+
+      case "deleteAnnouncement": {
+        state.announcements = state.announcements.filter((announcement) => announcement.id !== action.announcementId);
+        state.announcements = orderAnnouncements(state.announcements);
         return;
       }
 
@@ -179,6 +193,7 @@ export function applyClassroomAction(action: ClassroomAction): ActionResult {
           }
           return { ...announcement, pinned: false };
         });
+        state.announcements = orderAnnouncements(state.announcements);
         return;
       }
 

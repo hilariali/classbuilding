@@ -133,6 +133,7 @@ POST body actions:
 - updateBranding
 - updateTeacherPasscode
 - addAnnouncement
+- deleteAnnouncement
 - togglePinnedAnnouncement
 - createDrawSession
 - removeDrawSession

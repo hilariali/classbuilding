@@ -430,6 +430,12 @@ button:disabled {
   color: var(--muted);
 }
 
+.message-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
 .muted-text {
   color: var(--muted);
   line-height: 1.6;

@@ -218,13 +218,13 @@ function readStateFromSheets_() {
     remark: String(row.remark || ''),
   }));
 
-  const announcements = readRows_(announcementsSheet).map((row) => ({
+  const announcements = orderAnnouncements_(readRows_(announcementsSheet).map((row) => ({
     id: toNumber_(row.id),
     title: String(row.title || ''),
     body: String(row.body || ''),
     pinned: String(row.pinned).toLowerCase() === 'true',
     date: String(row.date || ''),
-  }));
+  })));
 
   const drawSessions = readRows_(drawSheet).map((row) => ({
     id: toNumber_(row.id),
@@ -361,6 +361,14 @@ function applyActionToState_(state, payload) {
       pinned: pin,
       date: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'),
     });
+    state.announcements = orderAnnouncements_(state.announcements);
+    return { state: state };
+  }
+
+  if (action === 'deleteAnnouncement') {
+    const targetId = toNumber_(payload.announcementId);
+    state.announcements = state.announcements.filter((item) => item.id !== targetId);
+    state.announcements = orderAnnouncements_(state.announcements);
     return { state: state };
   }
 
@@ -374,6 +382,7 @@ function applyActionToState_(state, payload) {
       }
       return item;
     });
+    state.announcements = orderAnnouncements_(state.announcements);
     return { state: state };
   }
 
@@ -496,6 +505,12 @@ function parseJson_(value, fallback) {
   } catch (err) {
     return fallback;
   }
+}
+
+function orderAnnouncements_(items) {
+  const pinned = items.filter((item) => item.pinned);
+  const others = items.filter((item) => !item.pinned);
+  return pinned.concat(others);
 }
 
 function json_(obj) {
