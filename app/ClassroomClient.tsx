@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { scoreRules, type ScoreField } from "@/lib/classData";
 import type { ClassroomAction, ClassroomState, DrawMode } from "@/lib/state";
 
@@ -45,6 +45,53 @@ function formatTime(seconds: number) {
   return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+function applyOptimisticAction(current: ClassroomState, action: ClassroomAction): ClassroomState | null {
+  if (action.action === "updateScore") {
+    return {
+      ...current,
+      students: current.students.map((student) => {
+        if (student.id !== action.studentId) return student;
+        const nextValue = Math.max(0, Number(student[action.field] ?? 0) + action.delta);
+        const updated = { ...student, [action.field]: nextValue } as typeof student;
+        updated.overall = updated.academic + updated.motivation + updated.service + updated.roleModel;
+        return updated;
+      }),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (action.action === "updateRole") {
+    return {
+      ...current,
+      students: current.students.map((student) =>
+        student.id === action.studentId ? { ...student, role: action.role } : student,
+      ),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (action.action === "updateRemark") {
+    return {
+      ...current,
+      students: current.students.map((student) =>
+        student.id === action.studentId ? { ...student, remark: action.remark } : student,
+      ),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  if (action.action === "updateBranding") {
+    return {
+      ...current,
+      schoolName: action.schoolName.trim() || current.schoolName,
+      className: action.className.trim() || current.className,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  return null;
+}
+
 type Props = {
   initialState: ClassroomState;
   appsScriptCode: string;
@@ -56,6 +103,12 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
   const [state, setState] = useState<ClassroomState>(initialState);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [actionNotice, setActionNotice] = useState<{ tone: "idle" | "saving" | "success" | "error"; text: string }>({
+    tone: "idle",
+    text: "",
+  });
+  const [pendingActionKey, setPendingActionKey] = useState<string | null>(null);
+  const noticeTimer = useRef<number | null>(null);
   const [dataSource, setDataSource] = useState<"apps-script" | "local-fallback">(initialSource);
   const [dataSourceError, setDataSourceError] = useState(initialSourceError ?? "");
 
@@ -105,9 +158,32 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
     return () => window.clearInterval(timer);
   }, [timerRunning]);
 
-  const applyAction = async (action: ClassroomAction) => {
+  useEffect(() => {
+    return () => {
+      if (noticeTimer.current) {
+        window.clearTimeout(noticeTimer.current);
+      }
+    };
+  }, []);
+
+  const applyAction = async (
+    action: ClassroomAction,
+    options?: { key?: string; savingText?: string; successText?: string },
+  ) => {
+    const optimisticState = applyOptimisticAction(state, action);
+    if (optimisticState) {
+      setState(optimisticState);
+    }
+
+    if (noticeTimer.current) {
+      window.clearTimeout(noticeTimer.current);
+    }
+
     setSaving(true);
+    setPendingActionKey(options?.key ?? null);
     setErrorMessage("");
+    setActionNotice({ tone: "saving", text: options?.savingText ?? "Saving updates..." });
+
     try {
       const response = await fetch("/api/classroom", {
         method: "POST",
@@ -135,12 +211,25 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
       setSchoolNameDraft(result.state.schoolName);
       setClassNameDraft(result.state.className);
       setTeacherPasscodeDraft(result.state.teacherPasscode);
+
+      setActionNotice({ tone: "success", text: options?.successText ?? "Saved" });
+      noticeTimer.current = window.setTimeout(() => {
+        setActionNotice({ tone: "idle", text: "" });
+      }, 1400);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Unable to save update");
+      if (optimisticState) {
+        setState(state);
+      }
+      const message = error instanceof Error ? error.message : "Unable to save update";
+      setErrorMessage(message);
+      setActionNotice({ tone: "error", text: message });
     } finally {
       setSaving(false);
+      setPendingActionKey(null);
     }
   };
+
+  const isPending = (key: string) => saving && pendingActionKey === key;
 
   const selectedStudent = useMemo(
     () => state.students.find((student) => student.id === selectedStudentId) ?? state.students[0] ?? null,
@@ -242,7 +331,9 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
       )}
 
       {errorMessage && <p className="error-banner">{errorMessage}</p>}
-      {saving && <p className="saving-banner">Saving updates...</p>}
+      {actionNotice.tone !== "idle" && (
+        <p className={`saving-banner action-${actionNotice.tone}`}>{actionNotice.text}</p>
+      )}
 
       {viewMode === "student" ? (
         <section className="dashboard-grid">
@@ -337,9 +428,15 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
             <div className="branding-grid">
               <input value={schoolNameDraft} onChange={(event) => setSchoolNameDraft(event.target.value)} placeholder="School name" />
               <input value={classNameDraft} onChange={(event) => setClassNameDraft(event.target.value)} placeholder="Class name" />
-              <button className="secondary-button" onClick={() => applyAction({ action: "updateBranding", schoolName: schoolNameDraft, className: classNameDraft })}>Save branding</button>
+              <button className="secondary-button" disabled={saving} onClick={() => applyAction(
+                { action: "updateBranding", schoolName: schoolNameDraft, className: classNameDraft },
+                { key: "branding", savingText: "Saving branding...", successText: "Branding updated" },
+              )}>{isPending("branding") ? "Saving..." : "Save branding"}</button>
               <input type="password" value={teacherPasscodeDraft} onChange={(event) => setTeacherPasscodeDraft(event.target.value)} placeholder="Teacher passcode" />
-              <button className="secondary-button" onClick={() => applyAction({ action: "updateTeacherPasscode", teacherPasscode: teacherPasscodeDraft })}>Save passcode</button>
+              <button className="secondary-button" disabled={saving} onClick={() => applyAction(
+                { action: "updateTeacherPasscode", teacherPasscode: teacherPasscodeDraft },
+                { key: "passcode", savingText: "Saving passcode...", successText: "Passcode updated" },
+              )}>{isPending("passcode") ? "Saving..." : "Save passcode"}</button>
             </div>
           </article>
 
@@ -397,13 +494,22 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
                 {scoreOptions.map((option) => (<option key={option.field} value={option.field}>{option.label}</option>))}
               </select>
               <input type="number" value={scoreDelta} onChange={(event) => setScoreDelta(Number(event.target.value) || 1)} />
-              <button className="primary-button" onClick={() => applyAction({ action: "updateScore", studentId: selectedStudentId, field: selectedField, delta: Math.abs(scoreDelta) })}>Add</button>
-              <button className="secondary-button" onClick={() => applyAction({ action: "updateScore", studentId: selectedStudentId, field: selectedField, delta: -Math.abs(scoreDelta) })}>Remove</button>
+              <button className="primary-button" disabled={saving} onClick={() => applyAction(
+                { action: "updateScore", studentId: selectedStudentId, field: selectedField, delta: Math.abs(scoreDelta) },
+                { key: "score-add", savingText: "Adding score...", successText: "Score updated" },
+              )}>{isPending("score-add") ? "Adding..." : "Add"}</button>
+              <button className="secondary-button" disabled={saving} onClick={() => applyAction(
+                { action: "updateScore", studentId: selectedStudentId, field: selectedField, delta: -Math.abs(scoreDelta) },
+                { key: "score-remove", savingText: "Removing score...", successText: "Score updated" },
+              )}>{isPending("score-remove") ? "Removing..." : "Remove"}</button>
             </div>
 
             <div className="quick-actions">
               {quickActions.map((actionItem, index) => (
-                <button key={`${actionItem.label}-${index}`} className="tiny-button" onClick={() => applyAction({ action: "updateScore", studentId: selectedStudentId, field: actionItem.field, delta: actionItem.delta })}>{actionItem.label}</button>
+                <button key={`${actionItem.label}-${index}`} className="tiny-button" disabled={saving} onClick={() => applyAction(
+                  { action: "updateScore", studentId: selectedStudentId, field: actionItem.field, delta: actionItem.delta },
+                  { key: `quick-${index}`, savingText: "Applying quick score...", successText: "Score updated" },
+                )}>{isPending(`quick-${index}`) ? "Applying..." : actionItem.label}</button>
               ))}
             </div>
 
@@ -420,14 +526,20 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
 
                 <div className="row-form">
                   <input value={roleDraft} onChange={(event) => setRoleDraft(event.target.value)} placeholder="Student role" />
-                  <button className="secondary-button" onClick={() => applyAction({ action: "updateRole", studentId: selectedStudent.id, role: roleDraft })}>Save role</button>
+                  <button className="secondary-button" disabled={saving} onClick={() => applyAction(
+                    { action: "updateRole", studentId: selectedStudent.id, role: roleDraft },
+                    { key: "role", savingText: "Saving role...", successText: "Role updated" },
+                  )}>{isPending("role") ? "Saving..." : "Save role"}</button>
                 </div>
 
                 <label className="remark-box">
                   <span>Remark</span>
                   <textarea value={remarkDraft} rows={3} onChange={(event) => setRemarkDraft(event.target.value)} />
                 </label>
-                <button className="secondary-button" onClick={() => applyAction({ action: "updateRemark", studentId: selectedStudent.id, remark: remarkDraft })}>Save remark</button>
+                <button className="secondary-button" disabled={saving} onClick={() => applyAction(
+                  { action: "updateRemark", studentId: selectedStudent.id, remark: remarkDraft },
+                  { key: "remark", savingText: "Saving remark...", successText: "Remark updated" },
+                )}>{isPending("remark") ? "Saving..." : "Save remark"}</button>
               </div>
             )}
           </article>
@@ -438,13 +550,16 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
               <input value={messageTitle} onChange={(event) => setMessageTitle(event.target.value)} placeholder="Title" />
               <textarea value={messageBody} onChange={(event) => setMessageBody(event.target.value)} rows={3} placeholder="Message" />
               <label className="checkbox-row"><input type="checkbox" checked={pinMessage} onChange={(event) => setPinMessage(event.target.checked)} />Pin this announcement</label>
-              <button className="primary-button" onClick={() => {
+              <button className="primary-button" disabled={saving} onClick={() => {
                 if (!messageTitle.trim() || !messageBody.trim()) return;
-                void applyAction({ action: "addAnnouncement", title: messageTitle, body: messageBody, pinned: pinMessage });
+                void applyAction(
+                  { action: "addAnnouncement", title: messageTitle, body: messageBody, pinned: pinMessage },
+                  { key: "announcement", savingText: "Posting announcement...", successText: "Announcement posted" },
+                );
                 setMessageTitle("");
                 setMessageBody("");
                 setPinMessage(false);
-              }}>Post announcement</button>
+              }}>{isPending("announcement") ? "Posting..." : "Post announcement"}</button>
             </div>
             <div className="message-list">
               {state.announcements.map((item) => (
@@ -452,7 +567,7 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
                   <div className="message-meta"><strong>{item.title}</strong>{item.pinned && <span className="pin-tag">Pinned</span>}</div>
                   <p>{item.body}</p>
                   <small>{item.date}</small>
-                  <button className="tiny-button" onClick={() => applyAction({ action: "togglePinnedAnnouncement", announcementId: item.id })}>{item.pinned ? "Unpin" : "Pin"}</button>
+                  <button className="tiny-button" disabled={saving} onClick={() => applyAction({ action: "togglePinnedAnnouncement", announcementId: item.id }, { key: `pin-${item.id}`, savingText: "Updating pin...", successText: "Pin updated" })}>{item.pinned ? "Unpin" : "Pin"}</button>
                 </article>
               ))}
             </div>
@@ -498,9 +613,18 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
                     <option value="repeat">Mode A: repeat draw</option>
                     <option value="nonrepeat">Mode B: non-repeat draw</option>
                   </select>
-                  <button className="primary-button" onClick={() => applyAction({ action: "createDrawSession", title: drawTitle, mode: drawMode })}>Create draw</button>
-                  <button className="secondary-button" onClick={() => activeDraw && applyAction({ action: "runDraw", sessionId: activeDraw.id })}>Draw name</button>
-                  <button className="secondary-button" onClick={() => activeDraw && applyAction({ action: "undoDraw", sessionId: activeDraw.id })}>Undo last draw</button>
+                  <button className="primary-button" disabled={saving} onClick={() => applyAction(
+                    { action: "createDrawSession", title: drawTitle, mode: drawMode },
+                    { key: "draw-create", savingText: "Creating draw session...", successText: "Draw session created" },
+                  )}>{isPending("draw-create") ? "Creating..." : "Create draw"}</button>
+                  <button className="secondary-button" disabled={saving} onClick={() => activeDraw && applyAction(
+                    { action: "runDraw", sessionId: activeDraw.id },
+                    { key: "draw-run", savingText: "Drawing name...", successText: "Draw completed" },
+                  )}>{isPending("draw-run") ? "Drawing..." : "Draw name"}</button>
+                  <button className="secondary-button" disabled={saving} onClick={() => activeDraw && applyAction(
+                    { action: "undoDraw", sessionId: activeDraw.id },
+                    { key: "draw-undo", savingText: "Undoing draw...", successText: "Last draw undone" },
+                  )}>{isPending("draw-undo") ? "Undoing..." : "Undo last draw"}</button>
                 </div>
 
                 <div className="draw-session-selector">
