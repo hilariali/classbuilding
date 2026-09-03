@@ -1,8 +1,10 @@
 import { applyClassroomAction, getClassroomState, type ClassroomAction, type ClassroomState } from "@/lib/state";
 
 const scriptUrl = process.env.CLASSBUILDING_APPS_SCRIPT_URL;
-const SCRIPT_FETCH_TIMEOUT_MS = 20000;
-const SCRIPT_FETCH_RETRIES = 2;
+const SCRIPT_GET_TIMEOUT_MS = 10000;
+const SCRIPT_POST_TIMEOUT_MS = 8000;
+const SCRIPT_GET_RETRIES = 1;
+const SCRIPT_POST_RETRIES = 1;
 
 type SourceResponse = {
   state: ClassroomState;
@@ -26,9 +28,9 @@ function normalizeState(incoming: ClassroomState): ClassroomState {
   };
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit) {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SCRIPT_FETCH_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     return await fetch(url, {
@@ -40,19 +42,20 @@ async function fetchWithTimeout(url: string, init: RequestInit) {
   }
 }
 
-async function fetchScriptWithRetry(url: string, init: RequestInit) {
+async function fetchScriptWithRetry(url: string, init: RequestInit, options: { timeoutMs: number; retries: number }) {
   let lastError: Error | null = null;
+  const { timeoutMs, retries } = options;
 
-  for (let attempt = 0; attempt <= SCRIPT_FETCH_RETRIES; attempt += 1) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const response = await fetchWithTimeout(url, init);
+      const response = await fetchWithTimeout(url, init, timeoutMs);
       if (!response.ok) {
         throw new Error(`Apps Script request failed with ${response.status}`);
       }
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error("Unknown Apps Script error");
-      if (attempt === SCRIPT_FETCH_RETRIES) {
+      if (attempt === retries) {
         break;
       }
     }
@@ -71,10 +74,17 @@ export async function getStateFromSource(): Promise<SourceResponse> {
   }
 
   try {
-    const response = await fetchScriptWithRetry(`${scriptUrl}?action=getState`, {
-      method: "GET",
-      cache: "no-store",
-    });
+    const response = await fetchScriptWithRetry(
+      `${scriptUrl}?action=getState`,
+      {
+        method: "GET",
+        cache: "no-store",
+      },
+      {
+        timeoutMs: SCRIPT_GET_TIMEOUT_MS,
+        retries: SCRIPT_GET_RETRIES,
+      },
+    );
 
     const data = (await response.json()) as { state?: ClassroomState; error?: string };
     if (data.error) {
@@ -106,12 +116,19 @@ export async function postActionToSource(action: ClassroomAction): Promise<Sourc
   }
 
   try {
-    const response = await fetchScriptWithRetry(scriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(action),
-      cache: "no-store",
-    });
+    const response = await fetchScriptWithRetry(
+      scriptUrl,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action),
+        cache: "no-store",
+      },
+      {
+        timeoutMs: SCRIPT_POST_TIMEOUT_MS,
+        retries: SCRIPT_POST_RETRIES,
+      },
+    );
 
     const data = (await response.json()) as {
       state?: ClassroomState;
