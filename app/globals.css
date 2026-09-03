@@ -604,9 +604,15 @@ textarea {
 
 .draw-session-selector {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.draw-session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .draw-option,
@@ -622,6 +628,17 @@ textarea {
   background: var(--primary-soft);
   border-color: #c9d7ff;
   color: var(--primary);
+}
+
+.tiny-button.danger {
+  border-color: #f2cbcb;
+  color: #a82121;
+  background: #fff7f7;
+}
+
+.tiny-button.danger:hover {
+  border-color: #e5a7a7;
+  background: #ffefef;
 }
 
 .draw-result {

@@ -135,6 +135,7 @@ POST body actions:
 - addAnnouncement
 - togglePinnedAnnouncement
 - createDrawSession
+- removeDrawSession
 - setActiveDraw
 - runDraw
 - undoDraw

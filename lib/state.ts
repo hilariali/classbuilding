@@ -38,6 +38,7 @@ export type ClassroomAction =
   | { action: "addAnnouncement"; title: string; body: string; pinned?: boolean }
   | { action: "togglePinnedAnnouncement"; announcementId: number }
   | { action: "createDrawSession"; title: string; mode: DrawMode }
+  | { action: "removeDrawSession"; sessionId: number }
   | { action: "setActiveDraw"; sessionId: number }
   | { action: "runDraw"; sessionId: number }
   | { action: "undoDraw"; sessionId: number };
@@ -192,6 +193,15 @@ export function applyClassroomAction(action: ClassroomAction): ActionResult {
         };
         state.drawSessions.push(newSession);
         state.activeDrawId = newSession.id;
+        return;
+      }
+
+      case "removeDrawSession": {
+        state.drawSessions = state.drawSessions.filter((session) => session.id !== action.sessionId);
+
+        if (state.activeDrawId === action.sessionId) {
+          state.activeDrawId = state.drawSessions[0]?.id ?? 0;
+        }
         return;
       }
 

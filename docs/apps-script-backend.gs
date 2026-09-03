@@ -394,6 +394,17 @@ function applyActionToState_(state, payload) {
     return { state: state };
   }
 
+  if (action === 'removeDrawSession') {
+    const targetId = toNumber_(payload.sessionId);
+    state.drawSessions = state.drawSessions.filter((entry) => entry.id !== targetId);
+
+    if (state.activeDrawId === targetId) {
+      state.activeDrawId = state.drawSessions.length ? state.drawSessions[0].id : 0;
+    }
+
+    return { state: state };
+  }
+
   if (action === 'setActiveDraw') {
     state.activeDrawId = toNumber_(payload.sessionId);
     return { state: state };

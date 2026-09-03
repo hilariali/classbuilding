@@ -89,6 +89,17 @@ function applyOptimisticAction(current: ClassroomState, action: ClassroomAction)
     };
   }
 
+  if (action.action === "removeDrawSession") {
+    const nextDrawSessions = current.drawSessions.filter((session) => session.id !== action.sessionId);
+    const nextActive = current.activeDrawId === action.sessionId ? (nextDrawSessions[0]?.id ?? 0) : current.activeDrawId;
+    return {
+      ...current,
+      drawSessions: nextDrawSessions,
+      activeDrawId: nextActive,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   return null;
 }
 
@@ -403,6 +414,18 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
             </div>
           </article>
 
+          <article className="panel">
+            <div className="panel-header"><h2>Scoring rules</h2></div>
+            <div className="rule-groups">
+              {Object.entries(scoreRules).map(([key, rules]) => (
+                <div key={key} className="rule-group">
+                  <h3>{key}</h3>
+                  <ul>{rules.map((rule) => (<li key={rule}>{rule}</li>))}</ul>
+                </div>
+              ))}
+            </div>
+          </article>
+
           <article className="panel wide-panel">
             <div className="panel-header"><h2>Name list</h2></div>
             <div className="student-table-wrap">
@@ -629,10 +652,26 @@ export default function ClassroomClient({ initialState, appsScriptCode, initialS
 
                 <div className="draw-session-selector">
                   {state.drawSessions.map((session) => (
-                    <button key={session.id} className={session.id === state.activeDrawId ? "selected-draw" : "draw-option"} onClick={() => applyAction({ action: "setActiveDraw", sessionId: session.id })}>
-                      {session.title} ({session.mode})
-                    </button>
+                    <div key={session.id} className="draw-session-item">
+                      <button className={session.id === state.activeDrawId ? "selected-draw" : "draw-option"} onClick={() => applyAction({ action: "setActiveDraw", sessionId: session.id })}>
+                        {session.title} ({session.mode})
+                      </button>
+                      <button
+                        className="tiny-button danger"
+                        disabled={saving}
+                        onClick={() => {
+                          if (!window.confirm(`Delete draw session "${session.title}"?`)) return;
+                          void applyAction(
+                            { action: "removeDrawSession", sessionId: session.id },
+                            { key: `draw-remove-${session.id}`, savingText: "Removing draw session...", successText: "Draw session removed" },
+                          );
+                        }}
+                      >
+                        {isPending(`draw-remove-${session.id}`) ? "Removing..." : "Delete"}
+                      </button>
+                    </div>
                   ))}
+                  {state.drawSessions.length === 0 && <p className="muted-text">No draw session yet. Create one above.</p>}
                 </div>
 
                 <p className="draw-result"><strong>Latest draw:</strong> {latestDrawName}</p>
